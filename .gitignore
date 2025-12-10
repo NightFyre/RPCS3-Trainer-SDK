@@ -1,0 +1,9 @@
+# ignore everything
+*
+
+# unignore .gitignore
+!.gitignore
+
+# unignore specific files
+!CDK.hpp
+!README.md
