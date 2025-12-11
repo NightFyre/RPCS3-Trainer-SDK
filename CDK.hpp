@@ -13,9 +13,194 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <stdint.h>
+
 
 namespace Playstation3
 {
+
+	/* REFERENCES
+	* Linus Torvalds - Linux - https://github.com/torvalds/linux/blob/16f73eb02d7e1765ccab3d2018e0bd98eb93d973/include/uapi/linux/elf.h#L220
+	* dfanz0r - https://gist.github.com/dfanz0r/38e59cdd0e4d87a865ecb5f2a6e912db
+	*/
+
+#define IMAGE_ELF_SIGNATURE				0x457F      // .ELF
+
+	enum ElfType : unsigned int
+	{
+		ET_NONE = 0,
+		ET_REL,
+		ET_EXEC,
+		ET_DYN,
+		ET_SCE_Exec = 0xFE00,           // SCE Executable - PRX2
+		ET_SCE_RelExec = 0xFE04,        // SCE Relocatable Executable - PRX2
+		ET_SCE_StubLib = 0xFE0C,        // SCE SDK Stubs
+		ET_SCE_DynExec = 0xFE10,        // SCE EXEC_ASLR (PS4 Executable with ASLR)
+		ET_SCE_Dynamic = 0xFE18,        // SCE Dynamic
+		ET_SCE_IopRelExec = 0xFF80,     // SCE IOP Relocatable Executable
+		ET_SCE_IopRelExec2 = 0xFF81,    // SCE IOP Relocatable Executable Version 2
+		ET_SCE_EeRelExec = 0xFF90,      // SCE EE Relocatable Executable
+		ET_SCE_EeRelExec2 = 0xFF91,     // SCE EE Relocatable Executable Version 2
+		ET_SCE_PspRelExec = 0xFFA0,     // SCE PSP Relocatable Executable
+		ET_SCE_PpuRelExec = 0xFFA4,     // SCE PPU Relocatable Executable
+		ET_SCE_ArmRelExec = 0xFFA5,     // SCE ARM Relocatable Executable (PS Vita)
+		ET_SCE_PspOverlay = 0xFFA8      // SCE PSP Overlay
+	};
+
+	enum class ElfMachine : USHORT
+	{
+		None = 0,
+		M32 = 1,
+		Sparc = 2,
+		I386 = 3,
+		M68k = 4,
+		M88k = 5,
+		I860 = 7,
+		Mips = 8,
+		PowerPc = 0x14,    // 32-bit PowerPC
+		PowerPc64 = 0x15,  // 64-bit PowerPC (PS3 PPU)
+		Arm = 0x28,
+		SparcV9 = 0x2B,
+		Ia64 = 0x32,
+		X86_64 = 0x3E
+	};
+
+	enum class ElfOsAbi : char
+	{
+		None = 0,
+		HpUx = 1,
+		NetBsd = 2,
+		Linux = 3,
+		Solaris = 6,
+		Aix = 7,
+		Irix = 8,
+		FreeBsd = 9,
+		OpenBsd = 12,
+		CellLv2 = 102  // CELL LV2 (PS3)
+	};
+
+	enum ElfSectionType : unsigned int
+	{
+		EST_Null = 0,
+		EST_ProgBits = 1,
+		EST_SymTab = 2,
+		EST_StrTab = 3,
+		EST_Rela = 4,
+		EST_Hash = 5,
+		EST_Dynamic = 6,
+		EST_Note = 7,
+		EST_NoBits = 8,
+		EST_Rel = 9,
+		EST_ShLib = 10,
+		EST_DynSym = 11,
+		EST_InitArray = 14,
+		EST_FiniArray = 15,
+		EST_PreInitArray = 16,
+		EST_Group = 17,
+		EST_SymTabShndx = 18,
+
+		// SCE-specific section types
+		EST_SCE_Rela = 0x60000000,
+		EST_SCE_Nid = 0x61000001,
+		EST_SCE_IopMod = 0x70000080,
+		EST_SCE_EeMod = 0x70000090,
+		EST_SCE_PspRela = 0x700000A0,
+		EST_SCE_PpuRela = 0x700000A4
+	};
+
+	enum ElfProgramType : unsigned int
+	{
+		EPT_Null = 0,
+		EPT_Load = 1,
+		EPT_Dynamic = 2,
+		EPT_Interp = 3,
+		EPT_Note = 4,
+		EPT_ShLib = 5,
+		EPT_Phdr = 6,
+		EPT_Tls = 7,
+
+		// SCE-specific segment types
+		EPT_SceRela = 0x60000000,
+		EPT_SceLicInfo1 = 0x60000001,
+		EPT_SceLicInfo2 = 0x60000002,
+		EPT_SceDynLibData = 0x61000000,
+		EPT_SceProcessParam = 0x61000001,
+		EPT_SceModuleParam = 0x61000002,
+		EPT_SceRelRo = 0x61000010,  // for PS4
+		EPT_SceComment = 0x6FFFFF00,
+		EPT_SceLibVersion = 0x6FFFFF01,
+		EPT_SceUnk70000001 = 0x70000001,
+		EPT_SceIopMod = 0x70000080,
+		EPT_SceEeMod = 0x70000090,
+		EPT_ScePspRela = 0x700000A0,
+		EPT_ScePspRela2 = 0x700000A1,
+		EPT_ScePpuRela = 0x700000A4,
+		EPT_SceSegSym = 0x700000A8
+	};
+
+	enum class ElfProgramFlags : unsigned int
+	{
+		Execute = 0x1,
+		Write = 0x2,
+		Read = 0x4,
+
+		// SCE-specific segment flags
+		SpuExecute = 0x00100000,     // SPU Execute
+		SpuWrite = 0x00200000,       // SPU Write
+		SpuRead = 0x00400000,        // SPU Read
+		RsxExecute = 0x01000000,     // RSX Execute
+		RsxWrite = 0x02000000,       // RSX Write
+		RsxRead = 0x04000000         // RSX Read
+	};
+
+	typedef struct _IMAGE_ELF64_HEADER {
+		uint8_t e_ident[16]; // magic
+		uint16_t e_type; //0x0010 ; ElfType
+		uint16_t e_machine; //0x0012 ; ElfMachine
+		uint32_t e_version; //0x0014
+		uint64_t e_entry; //0x0018
+		uint64_t e_phoff; //0x0020
+		uint64_t e_shoff; //0x0028
+		uint32_t e_flags; //0x0030
+		uint16_t e_ehsize; //0x0034
+		uint16_t e_phentsize; //0x0036
+		uint16_t e_phnum; //0x0038
+		uint16_t e_shentsize; //0x003A
+		uint16_t e_shnum; //0x003C
+		uint16_t e_shstrndx; //0x003E
+	} IMAGE_ELF64_HEADER, * PIMAGE_ELF64_HEADER; //Size: 0x0040
+
+	typedef struct  _ELF64_PROG_HEADER
+	{
+	public:
+		uint32_t p_type; //0x0000
+		uint32_t p_flags; //0x0004
+		uint64_t p_offset; //0x0008
+		uint64_t p_vaddr; //0x0010
+		uint64_t p_paddr; //0x0018
+		uint64_t p_filesz; //0x0020
+		uint64_t p_memsz; //0x0028
+		uint64_t p_align; //0x0030
+	} _ELF64_PROG_HEADER, * PELF64_PROG_HEADER; //Size: 0x0038
+
+	typedef struct _ELF64_SECTION_HEADER
+	{
+	public:
+		uint32_t sh_name; //0x0000
+		uint32_t sh_type; //0x0004
+		uint64_t sh_flags; //0x0008
+		uint64_t sh_addr; //0x0010
+		uint64_t sh_offset; //0x0018
+		uint64_t sh_size; //0x0020
+		uint32_t sh_link; //0x0028
+		uint32_t sh_info; //0x002C
+		uint64_t sh_addralign; //0x0030
+		uint64_t sh_entsize; //0x0038
+	} _ELF64_SECTION_HEADER, * PELF64_SECTION_HEADER; //Size: 0x0040
+
+
+	// --------------------------------------------------------------
+
 	bool InitCDK();
 	void ShutdownCDK();
 
@@ -73,23 +258,6 @@ namespace Playstation3
 	{
 	public:
 
-		template<typename T>
-		static inline T					_flip(__int64 val)
-		{
-			size_t szVal = sizeof(T);
-			switch (szVal)
-			{
-			case(2): return _byteswap_ushort(val); 
-			case(4): return _byteswap_ulong(val);
-			case(8): return _byteswap_uint64(val);
-			default: break;
-			}
-		}
-
-		static short ReadShort(__int64 addr) { return _flip<short>(*(short*)addr); }
-		static long ReadLong(__int64 addr) { return _flip<long>(*(long*)addr); }
-		static unsigned __int64 ReadULong(__int64 addr) { return _flip<unsigned long long>(*(unsigned long long*)addr); }
-
 	public:
 		static __int64                  GetBaseVM(); // vm::g_base_addr
 		static __int64 					GetBaseSUDO(); // vm::g_sudo_addr
@@ -97,6 +265,13 @@ namespace Playstation3
 		static __int64                  GetAddrVM(const __int32& offset); // returns vm::g_base_addr + offset
 		static __int64                  GetAddrSUDO(const __int32& offset); // returns vm::g_sudo_addr + offset
 		static __int64                  GetAddrEXEC(const __int32& offset); // returns vm::g_exec_addr + offset
+		static bool						DumpELF(const char* name); // parses and dumps each section
+		static short					ReadShort(__int64 addr);
+		static long						ReadWord(__int64 addr);
+		static __int64					ReadLong(__int64 addr);
+		static bool						WriteShort(__int64 addr, const short& value);
+		static bool						WriteWord(__int64 addr, const long& v);
+		static bool						WriteLong(__int64 addr, const unsigned __int64& v);
 	};
 
 
@@ -372,5 +547,108 @@ namespace Playstation3
 	__int64 PS3Memory::GetAddrEXEC(const __int32& offset)
 	{
 		return GetBaseEXEC() + offset;
+	}
+
+	inline bool PS3Memory::DumpELF(const char* name)
+	{
+		const auto& vm = GetBaseVM(); // _IMAGE_ELF64_HEADER
+		if (!vm)
+			return false;
+
+		const auto& core = vm - 0x10000;
+		const auto& ELF = Memory::ReadMemoryEx<_IMAGE_ELF64_HEADER>(vm);
+
+		/* parse program headers */
+		const auto& program_header_offset = _byteswap_uint64(ELF.e_phoff);
+		const auto& program_header_size = _byteswap_ushort(ELF.e_phentsize);
+		const auto& program_header_count = _byteswap_ushort(ELF.e_phnum);
+
+		//	std::vector<_ELF64_PROG_HEADER> program_headers;
+		for (int i = 0; i < program_header_count; i++)
+		{
+			auto offset = vm + program_header_offset + (i * program_header_size);
+
+			auto ph = Memory::ReadMemoryEx<_ELF64_PROG_HEADER>(offset);
+			ph.p_type = _byteswap_ulong(ph.p_type);		
+			ph.p_flags = _byteswap_ulong(ph.p_flags);	
+			ph.p_offset = _byteswap_uint64(ph.p_offset);
+			ph.p_vaddr = _byteswap_uint64(ph.p_vaddr);	
+			ph.p_paddr = _byteswap_uint64(ph.p_paddr);	
+			ph.p_filesz = _byteswap_uint64(ph.p_filesz);
+			ph.p_memsz = _byteswap_uint64(ph.p_memsz);	
+			ph.p_align = _byteswap_uint64(ph.p_align);	
+			//	program_headers.push_back(ph);
+
+
+			char buff[256];
+			sprintf_s(buff, "%s_%d.ELF", name, i);
+
+			const auto& va = core + ph.p_vaddr;
+			printf("[-] Dumping section to file @ 0x%llX with size 0x%08X\n", va, ph.p_memsz);
+			Memory::DumpSectionToFile(buff, va, ph.p_memsz);
+		}
+
+		return true;
+
+		/* parse section headers */
+		//	const auto& section_header_offset = _byteswap_uint64(ELF.e_shoff);
+		//	const auto& section_header_size = _byteswap_ushort(ELF.e_shentsize);
+		//	const auto& section_header_count = _byteswap_ushort(ELF.e_shnum);
+		//	
+		//	std::vector<_ELF64_SECTION_HEADER> section_headers;
+		//	for (int i = 0; i < section_header_count; i++)
+		//	{
+		//		auto offset = vm + section_header_offset + (i * section_header_size);
+		//	
+		//		auto sh = Memory::ReadMemoryEx<_ELF64_SECTION_HEADER>(offset);
+		//		// sh.sh_name; //0x0000
+		//		sh.sh_type = _byteswap_ulong(sh.sh_type); //0x0004
+		//		sh.sh_flags = _byteswap_uint64(sh.sh_flags); //0x0008
+		//		sh.sh_addr = _byteswap_uint64(sh.sh_addr); //0x0010
+		//		sh.sh_offset = _byteswap_uint64(sh.sh_offset); //0x0018
+		//		sh.sh_size = _byteswap_uint64(sh.sh_size); //0x0020
+		//		sh.sh_link = _byteswap_ulong(sh.sh_link); //0x0028
+		//		sh.sh_info = _byteswap_ulong(sh.sh_info); //0x002C
+		//		sh.sh_addralign = _byteswap_uint64(sh.sh_addralign); //0x0030
+		//		sh.sh_entsize = _byteswap_uint64(sh.sh_entsize); //0x0038
+		//	
+		//		section_headers.push_back(sh);
+		//	}
+	}
+
+	inline short PS3Memory::ReadShort(__int64 addr)
+	{
+		return _byteswap_ushort(Memory::ReadMemoryEx<short>(addr));
+	}
+	
+	inline long PS3Memory::ReadWord(__int64 addr)
+	{
+		return _byteswap_ulong(Memory::ReadMemoryEx<short>(addr));
+	}
+	
+	inline __int64 PS3Memory::ReadLong(__int64 addr)
+	{
+		return _byteswap_uint64(Memory::ReadMemoryEx<unsigned __int64>(addr));
+	}
+	
+	inline bool PS3Memory::WriteShort(__int64 addr, const short& v)
+	{
+		Memory::WriteMemoryEx<short>(addr, _byteswap_ushort(v));
+		
+		return ReadShort(addr) == v;
+	}
+	
+	inline bool PS3Memory::WriteWord(__int64 addr, const long& v)
+	{
+		Memory::WriteMemoryEx<long>(addr, _byteswap_ulong(v));
+
+		return ReadWord(addr) == v;
+	}
+	
+	inline bool PS3Memory::WriteLong(__int64 addr, const unsigned __int64& v)
+	{
+		Memory::WriteMemoryEx<unsigned __int64>(addr, _byteswap_uint64(v));
+
+		return ReadLong(addr) == v;
 	}
 }
