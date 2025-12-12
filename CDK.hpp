@@ -25,6 +25,7 @@ namespace Playstation3
 	*/
 
 #define IMAGE_ELF_SIGNATURE				0x457F      // .ELF
+#define ELF_HEADER						0x10000
 
 	enum ElfType : unsigned int
 	{
@@ -259,19 +260,25 @@ namespace Playstation3
 	public:
 
 	public:
-		static __int64                  GetBaseVM(); // vm::g_base_addr
-		static __int64 					GetBaseSUDO(); // vm::g_sudo_addr
+		static __int64                  GetBaseVM(bool bHeader = true); // vm::g_base_addr
+		static __int64 					GetBaseSUDO(bool bHeader = true); // vm::g_sudo_addr
 		static __int64 					GetBaseEXEC(); // vm::g_exec_addr
 		static __int64                  GetAddrVM(const __int32& offset); // returns vm::g_base_addr + offset
 		static __int64                  GetAddrSUDO(const __int32& offset); // returns vm::g_sudo_addr + offset
 		static __int64                  GetAddrEXEC(const __int32& offset); // returns vm::g_exec_addr + offset
-		static bool						DumpELF(const char* name); // parses and dumps each section
+
+		// 
+	public:
 		static short					ReadShort(__int64 addr);
 		static long						ReadWord(__int64 addr);
 		static __int64					ReadLong(__int64 addr);
-		static bool						WriteShort(__int64 addr, const short& value);
-		static bool						WriteWord(__int64 addr, const long& v);
+		static bool						WriteShort(__int64 addr, const unsigned short& value);
+		static bool						WriteWord(__int64 addr, const unsigned long& v);
 		static bool						WriteLong(__int64 addr, const unsigned __int64& v);
+		
+	public:
+		static bool						PointerScan(const unsigned __int64& addr, OUT std::vector<unsigned long long>& result, const size_t& depth = 20); // checks if anything points to an the input address or the section leading up to the input address 
+		static bool						DumpELF(const char* name); // parses and dumps each section
 	};
 
 
@@ -498,28 +505,36 @@ namespace Playstation3
 	//									PS3Memory
 	//-----------------------------------------------------------------------------------
 
-	__int64 PS3Memory::GetBaseVM()
+	__int64 PS3Memory::GetBaseVM(bool bHeader)
 	{
 		/*
 			.text:00000000006543E0 48 2B 15 91 96 74 03                                            sub     rdx, cs:vm__g_base_addr
 		*/
 		static __int64 g_base_addr = 0;
 		if (!g_base_addr)
+		{
 			g_base_addr = Memory::FindPattern("48 2B 15 ? ? ? ? 48 B8", 0, 7, 3, &g_base_addr);
-		
-		return g_base_addr > Memory::p_baseAddress ? *(__int64*)g_base_addr + 0x10000 : 0; // ".ELF"
+			if (g_base_addr > 0)
+				g_base_addr = *(__int64*)g_base_addr;
+		}
+
+		return bHeader ? g_base_addr + ELF_HEADER : g_base_addr; // ".ELF"
 	}
 
-	__int64 PS3Memory::GetBaseSUDO()
+	__int64 PS3Memory::GetBaseSUDO(bool bHeader)
 	{
 		/*
 			.text:0000000000635938 48 8B 05 C9 84 76 03                                            mov     rax, cs:vm__g_sudo_addr
 		*/
 		static __int64 g_sudo_addr = 0;
 		if (!g_sudo_addr)
+		{
 			g_sudo_addr = Memory::FindPattern("48 8B 05 ? ? ? ? 39 0C 02 75 ? 49 8B 4E ? 48 8B D3", 0, 7, 3, &g_sudo_addr);
+			if (g_sudo_addr > 0)
+				g_sudo_addr = *(__int64*)g_sudo_addr;
+		}
 
-		return g_sudo_addr > 0 ? *(__int64*)g_sudo_addr + 0x10000 : 0; // ".ELF"
+		return bHeader ? g_sudo_addr + ELF_HEADER : g_sudo_addr; // ".ELF"
 	}
 
 	__int64 PS3Memory::GetBaseEXEC()
@@ -536,17 +551,159 @@ namespace Playstation3
 
 	__int64 PS3Memory::GetAddrVM(const __int32& offset)
 	{
-		return GetBaseVM() + offset;
+		return GetBaseVM(false) + offset;
 	}
 
 	__int64 PS3Memory::GetAddrSUDO(const __int32& offset)
 	{
-		return GetBaseSUDO() + offset;
+		return GetBaseSUDO(false) + offset;
 	}
 
 	__int64 PS3Memory::GetAddrEXEC(const __int32& offset)
 	{
 		return GetBaseEXEC() + offset;
+	}
+
+	inline short PS3Memory::ReadShort(__int64 addr)
+	{
+		return _byteswap_ushort(Memory::ReadMemoryEx<unsigned short>(addr));
+	}
+
+	inline long PS3Memory::ReadWord(__int64 addr)
+	{
+		return _byteswap_ulong(Memory::ReadMemoryEx<unsigned long>(addr));
+	}
+
+	inline __int64 PS3Memory::ReadLong(__int64 addr)
+	{
+		return _byteswap_uint64(Memory::ReadMemoryEx<unsigned __int64>(addr));
+	}
+
+	inline bool PS3Memory::WriteShort(__int64 addr, const unsigned short& v)
+	{
+		Memory::WriteMemoryEx<short>(addr, _byteswap_ushort(v));
+
+		return ReadShort(addr) == v;
+	}
+
+	inline bool PS3Memory::WriteWord(__int64 addr, const unsigned long& v)
+	{
+		Memory::WriteMemoryEx<long>(addr, _byteswap_ulong(v));
+
+		return ReadWord(addr) == v;
+	}
+
+	inline bool PS3Memory::WriteLong(__int64 addr, const unsigned __int64& v)
+	{
+		Memory::WriteMemoryEx<unsigned __int64>(addr, _byteswap_uint64(v));
+
+		return ReadLong(addr) == v;
+	}
+
+	inline bool PS3Memory::PointerScan(const unsigned __int64& addr, OUT std::vector<unsigned long long>& result, const size_t& depth)
+	{
+
+		/*
+		 depth: how far back to go from the base address. Take the input 0x3301E8010. Let's say the entire region comes up with nothing pointing to it and there is a value passed for depth the method would walk backwards 4 bytes at a time searching for a pointer. 
+		 addr: 0x3301E8010
+		 core: 0x300000000
+		 mask: addr & 0xFFFFFF -> 0x1E8010
+		 mask2: addr & 0xFFFFFFFF -> 0x301E8010
+		 nibble: (addr >> 32) & 0xF -> 0x3
+
+		 the goal is to scan the entire VM region for the value matching 0x301E8010. 
+		  - It would be nice if the entire section could be read at once (0x300000000 - 0x3FFFFFFFF) and iterate 4 bytes at a time. swapping bytes and comparing with the input search value. 
+		*/
+
+		const auto& vm = GetBaseVM(false);
+		if (!vm)
+			return false;
+
+		unsigned __int8* scan_bytes = reinterpret_cast<unsigned __int8*>(vm); // hehe "im in danger"
+
+		SIZE_T read_sz{ 0 }; // read size 
+		constexpr size_t sz = 4;
+		constexpr size_t section_sz = 0x100000000; // size of section to scan
+		unsigned long long input_base = addr & 0xFFFFFFFF; // (addr >> 32) & 0xF > 0 ? addr & 0xFFFFFFFF : addr & 0xFFFFFF; // mask leading bytes
+		printf("[+][PS3Memory::PointerScan] vm: 0x%llX : input: 0x%llX : masked: 0x%llX : bytes: ", vm, addr, input_base);
+
+		unsigned __int8 input_bytes[sz];
+		for (int i = 0; i < 4; i++)
+		{
+			input_bytes[i] = (input_base >> (24 - (i * 8))) & 0xFF; // 30 1E 80 10
+			printf("%02X ", input_bytes[i]);
+		}
+		printf("\n");
+
+		size_t scan_act = 0;
+		std::vector<unsigned long long> scan_results;
+		for (int L = 0; L < depth + 1; L++)
+		{
+			if (L != 0)
+			{
+				input_base -= 0x4;
+				printf("[+][PS3Memory::PointerScan] adjusting bytes for depth: ");
+				for (int K = 0; K < 4; K++)
+				{
+					input_bytes[K] = (input_base >> (24 - (K * 8))) & 0xFF; // 30 1E 80 0C ; example -4  
+					printf("%02X ", input_bytes[K]);
+				}
+				printf("\n");
+			}
+
+			while (scan_act < section_sz)
+			{
+				/* safely walk sections */
+				MEMORY_BASIC_INFORMATION mbi{  };
+				if (!VirtualQuery(scan_bytes + scan_act, &mbi, sizeof(mbi)))
+				{
+					printf("[!][PS3Memory::PointerScan] virtual query failed with error code: 0x%08X\n", GetLastError());
+					break;
+				}
+
+				/* get region size & determine if memory is commited */
+				size_t region_sz = mbi.RegionSize;
+				if (mbi.State != MEM_COMMIT || (mbi.Protect & PAGE_NOACCESS) || (mbi.Protect & PAGE_GUARD))
+				{
+					printf("[-][PS3Memory::PointerScan] skipping section @ 0x%llx with size 0x%08X\n", scan_bytes + scan_act, region_sz);
+					scan_act += region_sz;
+					continue;
+				}
+
+				/* walk region */
+				for (size_t i = 0; i + sz <= region_sz; i++)
+				{
+					bool found = true;
+
+					/* walk bytes */
+					for (int j = 0; j < sz; j++)
+					{
+						// 30 1E 80 10
+						if (scan_bytes[scan_act + i + j] != input_bytes[j])
+						{
+							found = false;
+							break;
+						}
+					}
+
+					/* was something found ? */
+					if (found)
+					{
+						auto address = vm + scan_act + i;
+						scan_results.push_back(address);
+						printf("[+][PS3Memory::PointerScan] 0x%llX -> 0x%llX\n", address, input_base);
+					}
+				}
+				scan_act += region_sz;
+			}
+			scan_act = 0; // reset scan for next
+		}
+
+		result = scan_results;
+
+		printf("[+][PS3Memory::PointerScan][0x%llX] obtained %d results.\n", scan_results.size() > 0 ? scan_results[0] : 0, scan_results.size());
+
+		return scan_results.size() > 0;
 	}
 
 	inline bool PS3Memory::DumpELF(const char* name)
@@ -614,41 +771,5 @@ namespace Playstation3
 		//	
 		//		section_headers.push_back(sh);
 		//	}
-	}
-
-	inline short PS3Memory::ReadShort(__int64 addr)
-	{
-		return _byteswap_ushort(Memory::ReadMemoryEx<short>(addr));
-	}
-	
-	inline long PS3Memory::ReadWord(__int64 addr)
-	{
-		return _byteswap_ulong(Memory::ReadMemoryEx<short>(addr));
-	}
-	
-	inline __int64 PS3Memory::ReadLong(__int64 addr)
-	{
-		return _byteswap_uint64(Memory::ReadMemoryEx<unsigned __int64>(addr));
-	}
-	
-	inline bool PS3Memory::WriteShort(__int64 addr, const short& v)
-	{
-		Memory::WriteMemoryEx<short>(addr, _byteswap_ushort(v));
-		
-		return ReadShort(addr) == v;
-	}
-	
-	inline bool PS3Memory::WriteWord(__int64 addr, const long& v)
-	{
-		Memory::WriteMemoryEx<long>(addr, _byteswap_ulong(v));
-
-		return ReadWord(addr) == v;
-	}
-	
-	inline bool PS3Memory::WriteLong(__int64 addr, const unsigned __int64& v)
-	{
-		Memory::WriteMemoryEx<unsigned __int64>(addr, _byteswap_uint64(v));
-
-		return ReadLong(addr) == v;
 	}
 }
