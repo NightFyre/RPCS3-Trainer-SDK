@@ -549,35 +549,17 @@ namespace Playstation3
 		return g_exec_addr > 0 ? *(__int64*)g_exec_addr : 0;
 	}
 
-	__int64 PS3Memory::GetAddrVM(const __int32& offset)
-	{
-		return GetBaseVM(false) + offset;
-	}
+	__int64 PS3Memory::GetAddrVM(const __int32& offset) { return GetBaseVM(false) + offset; }
 
-	__int64 PS3Memory::GetAddrSUDO(const __int32& offset)
-	{
-		return GetBaseSUDO(false) + offset;
-	}
+	__int64 PS3Memory::GetAddrSUDO(const __int32& offset) { return GetBaseSUDO(false) + offset; }
 
-	__int64 PS3Memory::GetAddrEXEC(const __int32& offset)
-	{
-		return GetBaseEXEC() + offset;
-	}
+	__int64 PS3Memory::GetAddrEXEC(const __int32& offset) { return GetBaseEXEC() + offset; }
 
-	inline short PS3Memory::ReadShort(__int64 addr)
-	{
-		return _byteswap_ushort(Memory::ReadMemoryEx<unsigned short>(addr));
-	}
+	inline short PS3Memory::ReadShort(__int64 addr) { return _byteswap_ushort(Memory::ReadMemoryEx<unsigned short>(addr)); }
 
-	inline long PS3Memory::ReadWord(__int64 addr)
-	{
-		return _byteswap_ulong(Memory::ReadMemoryEx<unsigned long>(addr));
-	}
+	inline long PS3Memory::ReadWord(__int64 addr) { return _byteswap_ulong(Memory::ReadMemoryEx<unsigned long>(addr)); }
 
-	inline __int64 PS3Memory::ReadLong(__int64 addr)
-	{
-		return _byteswap_uint64(Memory::ReadMemoryEx<unsigned __int64>(addr));
-	}
+	inline __int64 PS3Memory::ReadLong(__int64 addr) { return _byteswap_uint64(Memory::ReadMemoryEx<unsigned __int64>(addr)); }
 
 	inline bool PS3Memory::WriteShort(__int64 addr, const unsigned short& v)
 	{
@@ -712,13 +694,14 @@ namespace Playstation3
 		if (!vm)
 			return false;
 
-		const auto& core = vm - 0x10000;
-		const auto& ELF = Memory::ReadMemoryEx<_IMAGE_ELF64_HEADER>(vm);
 
 		/* parse program headers */
+		const auto& core = vm - ELF_HEADER;
+		const auto& ELF = Memory::ReadMemoryEx<_IMAGE_ELF64_HEADER>(vm);
 		const auto& program_header_offset = _byteswap_uint64(ELF.e_phoff);
 		const auto& program_header_size = _byteswap_ushort(ELF.e_phentsize);
 		const auto& program_header_count = _byteswap_ushort(ELF.e_phnum);
+		printf("[+][PS3Memory::DumpELF][%s] Dumping ELF Program Headers\n- VM: 0x%llX\n- ELF Header: 0x%llX\n- PH Offset: 0x%08X\n- PH Size: 0x%08X\n- PH Count: %d\n", name, core, vm, program_header_offset, program_header_size, program_header_count);
 
 		//	std::vector<_ELF64_PROG_HEADER> program_headers;
 		for (int i = 0; i < program_header_count; i++)
@@ -726,6 +709,9 @@ namespace Playstation3
 			auto offset = vm + program_header_offset + (i * program_header_size);
 
 			auto ph = Memory::ReadMemoryEx<_ELF64_PROG_HEADER>(offset);
+			if (ph.p_filesz <= 0 || ph.p_memsz <= 0)
+				continue;
+
 			ph.p_type = _byteswap_ulong(ph.p_type);		
 			ph.p_flags = _byteswap_ulong(ph.p_flags);	
 			ph.p_offset = _byteswap_uint64(ph.p_offset);
@@ -741,9 +727,11 @@ namespace Playstation3
 			sprintf_s(buff, "%s_%d.ELF", name, i);
 
 			const auto& va = core + ph.p_vaddr;
-			printf("[-] Dumping section to file @ 0x%llX with size 0x%08X\n", va, ph.p_memsz);
-			Memory::DumpSectionToFile(buff, va, ph.p_memsz);
+			printf("[-][PS3Memory::DumpELF] Dumping section to file @ 0x%llX with size 0x%08X\n", va, ph.p_filesz);
+			Memory::DumpSectionToFile(buff, va, ph.p_filesz);
 		}
+
+		printf("[+][PS3Memory::DumpELF] finished.\n");
 
 		return true;
 
