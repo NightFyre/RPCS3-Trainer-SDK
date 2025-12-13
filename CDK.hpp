@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sstream>
 #include <stdint.h>
+#include <unordered_map>
 
 
 namespace Playstation3
@@ -27,7 +28,18 @@ namespace Playstation3
 #define IMAGE_ELF_SIGNATURE				0x457F      // .ELF
 #define ELF_HEADER						0x10000
 
-	enum ElfType : unsigned int
+
+
+	typedef uint8_t u8_t;
+	typedef uint16_t u16_t;
+	typedef uint32_t u32_t;
+	typedef uint64_t u64_t;
+	typedef int8_t i8_t;
+	typedef int16_t i16_t;
+	typedef int32_t i32_t;
+	typedef int64_t i64_t;
+
+	enum ElfType : u32_t
 	{
 		ET_NONE = 0,
 		ET_REL,
@@ -80,7 +92,7 @@ namespace Playstation3
 		CellLv2 = 102  // CELL LV2 (PS3)
 	};
 
-	enum ElfSectionType : unsigned int
+	enum ElfSectionType : u32_t
 	{
 		EST_Null = 0,
 		EST_ProgBits = 1,
@@ -109,7 +121,7 @@ namespace Playstation3
 		EST_SCE_PpuRela = 0x700000A4
 	};
 
-	enum ElfProgramType : unsigned int
+	enum ElfProgramType : u32_t
 	{
 		EPT_Null = 0,
 		EPT_Load = 1,
@@ -139,7 +151,7 @@ namespace Playstation3
 		EPT_SceSegSym = 0x700000A8
 	};
 
-	enum class ElfProgramFlags : unsigned int
+	enum class ElfProgramFlags : u32_t
 	{
 		Execute = 0x1,
 		Write = 0x2,
@@ -155,48 +167,48 @@ namespace Playstation3
 	};
 
 	typedef struct _IMAGE_ELF64_HEADER {
-		uint8_t e_ident[16]; // magic
-		uint16_t e_type; //0x0010 ; ElfType
-		uint16_t e_machine; //0x0012 ; ElfMachine
-		uint32_t e_version; //0x0014
-		uint64_t e_entry; //0x0018
-		uint64_t e_phoff; //0x0020
-		uint64_t e_shoff; //0x0028
-		uint32_t e_flags; //0x0030
-		uint16_t e_ehsize; //0x0034
-		uint16_t e_phentsize; //0x0036
-		uint16_t e_phnum; //0x0038
-		uint16_t e_shentsize; //0x003A
-		uint16_t e_shnum; //0x003C
-		uint16_t e_shstrndx; //0x003E
+		u8_t e_ident[16]; // magic
+		u16_t e_type; //0x0010 ; ElfType
+		u16_t e_machine; //0x0012 ; ElfMachine
+		u32_t e_version; //0x0014
+		u64_t e_entry; //0x0018
+		u64_t e_phoff; //0x0020
+		u64_t e_shoff; //0x0028
+		u32_t e_flags; //0x0030
+		u16_t e_ehsize; //0x0034
+		u16_t e_phentsize; //0x0036
+		u16_t e_phnum; //0x0038
+		u16_t e_shentsize; //0x003A
+		u16_t e_shnum; //0x003C
+		u16_t e_shstrndx; //0x003E
 	} IMAGE_ELF64_HEADER, * PIMAGE_ELF64_HEADER; //Size: 0x0040
 
 	typedef struct  _ELF64_PROG_HEADER
 	{
 	public:
-		uint32_t p_type; //0x0000
-		uint32_t p_flags; //0x0004
-		uint64_t p_offset; //0x0008
-		uint64_t p_vaddr; //0x0010
-		uint64_t p_paddr; //0x0018
-		uint64_t p_filesz; //0x0020
-		uint64_t p_memsz; //0x0028
-		uint64_t p_align; //0x0030
+		u32_t p_type; //0x0000
+		u32_t p_flags; //0x0004
+		u64_t p_offset; //0x0008
+		u64_t p_vaddr; //0x0010
+		u64_t p_paddr; //0x0018
+		u64_t p_filesz; //0x0020
+		u64_t p_memsz; //0x0028
+		u64_t p_align; //0x0030
 	} _ELF64_PROG_HEADER, * PELF64_PROG_HEADER; //Size: 0x0038
 
 	typedef struct _ELF64_SECTION_HEADER
 	{
 	public:
-		uint32_t sh_name; //0x0000
-		uint32_t sh_type; //0x0004
-		uint64_t sh_flags; //0x0008
-		uint64_t sh_addr; //0x0010
-		uint64_t sh_offset; //0x0018
-		uint64_t sh_size; //0x0020
-		uint32_t sh_link; //0x0028
-		uint32_t sh_info; //0x002C
-		uint64_t sh_addralign; //0x0030
-		uint64_t sh_entsize; //0x0038
+		u32_t sh_name; //0x0000
+		u32_t sh_type; //0x0004
+		u64_t sh_flags; //0x0008
+		u64_t sh_addr; //0x0010
+		u64_t sh_offset; //0x0018
+		u64_t sh_size; //0x0020
+		u32_t sh_link; //0x0028
+		u32_t sh_info; //0x002C
+		u64_t sh_addralign; //0x0030
+		u64_t sh_entsize; //0x0038
 	} _ELF64_SECTION_HEADER, * PELF64_SECTION_HEADER; //Size: 0x0040
 
 
@@ -227,18 +239,18 @@ namespace Playstation3
 
 	public:
 		template <typename T>
-		static inline T	ReadMemoryEx(__int64 addr) { return *(T*)addr; }
+		static inline T	ReadMemoryEx(u64_t addr) { return *(T*)addr; }
 
 		template<typename T>
-		static inline void	WriteMemoryEx(__int64 addr, T patch) { *(T*)addr = patch; }
+		static inline void	WriteMemoryEx(u64_t addr, T patch) { *(T*)addr = patch; }
 
 	public:
 		static Memory*	GetDefaultInstance();
-		static __int64	GetModuleBase(); //  returns the module base of RPCS3 Process => RPCS3.exe
-		static __int64	GetAddr(const unsigned __int32& offset); //  returns address offset from RPCS3 module base
-		static __int64	FindPattern(const std::string& signature, const DWORD& padding, const DWORD& szInstruction, const DWORD& szOp, OUT __int64* lpResult);
-		static bool		GetSectionHeaderAddress(const ESECTIONHEADERS& section, __int64* lpResult, size_t* szImage);
-		static bool		DumpSectionToFile(const char* filename, const __int64& start_offset, const size_t& size); // Dumps a section of memory to a file
+		static u64_t	GetModuleBase(); //  returns the module base of RPCS3 Process => RPCS3.exe
+		static u64_t	GetAddr(const u32_t& offset); //  returns address offset from RPCS3 module base
+		static u64_t	FindPattern(const std::string& signature, const DWORD& padding, const DWORD& szInstruction, const DWORD& szOp, OUT u64_t* lpResult);
+		static bool		GetSectionHeaderAddress(const ESECTIONHEADERS& section, OUT u64_t* lpResult, OUT size_t* szImage);
+		static bool		DumpSectionToFile(const char* filename, const u64_t& start_offset, const size_t& size); // Dumps a section of memory to a file
 
 	public:
 		Memory();
@@ -251,7 +263,7 @@ namespace Playstation3
 		static DWORD p_pid;
 		static HMODULE p_hModule;
 		static bool p_isInitialized;
-		static unsigned __int64 p_baseAddress;
+		static u64_t p_baseAddress;
 		static Memory* p_instance;
 	};
 
@@ -260,25 +272,27 @@ namespace Playstation3
 	public:
 
 	public:
-		static __int64                  GetBaseVM(bool bHeader = true); // vm::g_base_addr
-		static __int64 					GetBaseSUDO(bool bHeader = true); // vm::g_sudo_addr
-		static __int64 					GetBaseEXEC(); // vm::g_exec_addr
-		static __int64                  GetAddrVM(const __int32& offset); // returns vm::g_base_addr + offset
-		static __int64                  GetAddrSUDO(const __int32& offset); // returns vm::g_sudo_addr + offset
-		static __int64                  GetAddrEXEC(const __int32& offset); // returns vm::g_exec_addr + offset
+		static u64_t					GetBaseVM(bool bHeader = true); // vm::g_base_addr
+		static u64_t 					GetBaseSUDO(bool bHeader = true); // vm::g_sudo_addr
+		static u64_t 					GetBaseEXEC(); // vm::g_exec_addr
+		static u64_t					GetAddrVM(const u32_t& offset); // returns vm::g_base_addr + offset
+		static u64_t					GetAddrSUDO(const u32_t& offset); // returns vm::g_sudo_addr + offset
+		static u64_t					GetAddrEXEC(const u32_t& offset); // returns vm::g_exec_addr + offset
+		static bool						IsSafeReadAddress(const u64_t& addr); // checks if an address is safe for reading
+		static bool						IsSafeWriteAddress(const u64_t& addr); // checks if an address is safe for writing , note that SUDO section will always return true.
 
 		// 
+	public: // byteswap dereference methods
+		static u16_t					ReadShort(const u64_t& addr);
+		static u32_t					ReadLong(const u64_t& addr);
+		static u64_t					ReadU64(const u64_t& addr);
+		static bool						WriteShort(const u64_t& addr, const u16_t& value);
+		static bool						WriteLong(const u64_t& addr, const u32_t& v);
+		static bool						WriteU64(const u64_t& addr, const u64_t& v);
+
 	public:
-		static short					ReadShort(__int64 addr);
-		static long						ReadWord(__int64 addr);
-		static __int64					ReadLong(__int64 addr);
-		static bool						WriteShort(__int64 addr, const unsigned short& value);
-		static bool						WriteWord(__int64 addr, const unsigned long& v);
-		static bool						WriteLong(__int64 addr, const unsigned __int64& v);
-		
-	public:
-		static bool						PointerScan(const unsigned __int64& addr, OUT std::vector<unsigned long long>& result, const size_t& depth = 20); // checks if anything points to an the input address or the section leading up to the input address 
-		static bool						DumpELF(const char* name); // parses and dumps each section
+		static bool						PointerScan(const u64_t& addr, OUT std::vector<u64_t>& result, const size_t& depth = 0); // checks if anything points to an the input address or the section leading up to the input address 
+		static bool						DumpELFHeaders(const char* name); // parses and dumps each section
 	};
 
 
@@ -310,7 +324,7 @@ namespace Playstation3
 	DWORD Memory::p_pid{ 0 };
 	HMODULE Memory::p_hModule{ 0 };
 	bool Memory::p_isInitialized{ false };
-	unsigned __int64 Memory::p_baseAddress{ 0 };
+	u64_t Memory::p_baseAddress{ 0 };
 	Memory* Memory::p_instance = new Memory(); // initalize at runtime
 	
 	Memory::Memory()
@@ -320,7 +334,7 @@ namespace Playstation3
 
 		p_pid = GetCurrentProcessId();
 		p_hModule = GetModuleHandle(0);
-		p_baseAddress = reinterpret_cast<unsigned __int64>(p_hModule);
+		p_baseAddress = reinterpret_cast<u64_t>(p_hModule);
 		p_isInitialized = p_pid != 0 && p_baseAddress != 0;
 	}
 
@@ -328,11 +342,11 @@ namespace Playstation3
 
 	Memory* Memory::GetDefaultInstance() { return p_instance; }
 
-	__int64 Memory::GetModuleBase() { return reinterpret_cast<unsigned __int64>(GetModuleHandle(0)); }
+	u64_t Memory::GetModuleBase() { return reinterpret_cast<u64_t>(GetModuleHandle(0)); }
 
-	__int64 Memory::GetAddr(const unsigned __int32& offset) { return GetModuleBase() + offset; }
+	u64_t Memory::GetAddr(const u32_t& offset) { return GetModuleBase() + offset; }
 
-	__int64 Memory::FindPattern(const std::string& signature, const DWORD& padding, const DWORD& szInstruction, const DWORD& szOp, OUT __int64* lpResult)
+	u64_t Memory::FindPattern(const std::string& signature, const DWORD& padding, const DWORD& szInstruction, const DWORD& szOp, OUT u64_t* lpResult)
 	{
 		static auto pattern_to_byte = [](const char* pattern)
 		{
@@ -355,10 +369,10 @@ namespace Playstation3
 			return bytes;
 		};
 
-		__int64 result = 0;
+		u64_t result = 0;
 
 		//	Get .text segment
-		__int64 section_base = 0;
+		u64_t section_base = 0;
 		size_t section_size = 0;
 		if (!GetSectionHeaderAddress(ESECTIONHEADERS::SECTION_TEXT, &section_base, &section_size))
 			return false;
@@ -370,7 +384,7 @@ namespace Playstation3
 
 		//	read section
 		SIZE_T szRead{ 0 };
-		std::vector<unsigned __int8> scan_bytes(section_size);
+		std::vector<u8_t> scan_bytes(section_size);
 		if (!ReadProcessMemory(GetCurrentProcess(), (LPVOID)section_base, scan_bytes.data(), scan_bytes.size(), &szRead))
 			return false;
 
@@ -399,7 +413,7 @@ namespace Playstation3
 			//	get value
 			if (szInstruction > 0 && szOp > 0)
 			{
-				const auto offset = ReadMemoryEx<int>(address + szOp);
+				const auto offset = ReadMemoryEx<u32_t>(address + szOp);
 				result = (address + offset) + szInstruction;
 			}
 			else
@@ -413,7 +427,7 @@ namespace Playstation3
 		return result;
 	}
 
-	bool Memory::GetSectionHeaderAddress(const ESECTIONHEADERS& section, __int64* lpResult, size_t* szImage)
+	bool Memory::GetSectionHeaderAddress(const ESECTIONHEADERS& section, OUT u64_t* lpResult, OUT size_t* szImage)
 	{
 		//	get segment title
 		std::string segment;
@@ -442,7 +456,7 @@ namespace Playstation3
 
 		//	Get section
 		size_t section_size = 0;
-		__int64 section_base = 0;
+		u64_t section_base = 0;
 		const auto& image_section_header = e_lfanew + sizeof(IMAGE_NT_HEADERS);
 		IMAGE_SECTION_HEADER section_headers_base = ReadMemoryEx<IMAGE_SECTION_HEADER>(image_section_header);
 		for (int i = 0; i < image_nt_headers.FileHeader.NumberOfSections; ++i)
@@ -467,7 +481,7 @@ namespace Playstation3
 		return true;
 	}
 
-	bool Memory::DumpSectionToFile(const char* filename, const __int64& start_offset, const size_t& size)
+	bool Memory::DumpSectionToFile(const char* filename, const u64_t& start_offset, const size_t& size)
 	{
 		if (!p_isInitialized || !filename || size == 0)
 			return false;
@@ -482,7 +496,7 @@ namespace Playstation3
 			return false;
 
 		size_t bytesRemaining = size;
-		__int64 currentOffset = start_offset;
+		u64_t currentOffset = start_offset;
 		while (bytesRemaining > 0)
 		{
 			size_t chunkSize = (bytesRemaining < PAGE_SIZE) ? bytesRemaining : PAGE_SIZE;
@@ -505,104 +519,125 @@ namespace Playstation3
 	//									PS3Memory
 	//-----------------------------------------------------------------------------------
 
-	__int64 PS3Memory::GetBaseVM(bool bHeader)
+	u64_t PS3Memory::GetBaseVM(bool bHeader)
 	{
 		/*
 			.text:00000000006543E0 48 2B 15 91 96 74 03                                            sub     rdx, cs:vm__g_base_addr
 		*/
-		static __int64 g_base_addr = 0;
+		static u64_t g_base_addr = 0;
 		if (!g_base_addr)
 		{
 			g_base_addr = Memory::FindPattern("48 2B 15 ? ? ? ? 48 B8", 0, 7, 3, &g_base_addr);
 			if (g_base_addr > 0)
-				g_base_addr = *(__int64*)g_base_addr;
+				g_base_addr = *(u64_t*)g_base_addr;
 		}
 
 		return bHeader ? g_base_addr + ELF_HEADER : g_base_addr; // ".ELF"
 	}
 
-	__int64 PS3Memory::GetBaseSUDO(bool bHeader)
+	u64_t PS3Memory::GetBaseSUDO(bool bHeader)
 	{
 		/*
 			.text:0000000000635938 48 8B 05 C9 84 76 03                                            mov     rax, cs:vm__g_sudo_addr
 		*/
-		static __int64 g_sudo_addr = 0;
+		static u64_t g_sudo_addr = 0;
 		if (!g_sudo_addr)
 		{
 			g_sudo_addr = Memory::FindPattern("48 8B 05 ? ? ? ? 39 0C 02 75 ? 49 8B 4E ? 48 8B D3", 0, 7, 3, &g_sudo_addr);
 			if (g_sudo_addr > 0)
-				g_sudo_addr = *(__int64*)g_sudo_addr;
+				g_sudo_addr = *(u64_t*)g_sudo_addr;
 		}
 
 		return bHeader ? g_sudo_addr + ELF_HEADER : g_sudo_addr; // ".ELF"
 	}
 
-	__int64 PS3Memory::GetBaseEXEC()
+	u64_t PS3Memory::GetBaseEXEC()
 	{
 		/*
 			.text:0000000000A8D6C9 48 2B 05 28 0A 31 03                                            sub     rax, cs:vm__g_exec_addr
 		*/
-		static __int64 g_exec_addr = 0;
+		static u64_t g_exec_addr = 0;
 		if (!g_exec_addr)
 			g_exec_addr = Memory::FindPattern("48 2B 05 ? ? ? ? 48 99", 0, 7, 3, &g_exec_addr);
 
-		return g_exec_addr > 0 ? *(__int64*)g_exec_addr : 0;
+		return g_exec_addr > 0 ? *(u64_t*)g_exec_addr : 0;
 	}
 
-	__int64 PS3Memory::GetAddrVM(const __int32& offset)
+	u64_t PS3Memory::GetAddrVM(const u32_t& offset) { return GetBaseVM(false) + offset; }
+
+	u64_t PS3Memory::GetAddrSUDO(const u32_t& offset) { return GetBaseSUDO(false) + offset; }
+
+	u64_t PS3Memory::GetAddrEXEC(const u32_t& offset) { return GetBaseEXEC() + offset; }
+	
+	bool PS3Memory::IsSafeReadAddress(const u64_t& addr)
 	{
-		return GetBaseVM(false) + offset;
+		constexpr DWORD readable = PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE;
+
+		if (!addr)
+			return false;
+
+		MEMORY_BASIC_INFORMATION mbi{};
+		if (!VirtualQuery(reinterpret_cast<LPCVOID>(addr), &mbi, sizeof(mbi)))
+			return false;
+
+		if (mbi.State != MEM_COMMIT)
+			return false;
+
+		if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))
+			return false;
+
+		return (mbi.Protect & readable) != 0;
 	}
 
-	__int64 PS3Memory::GetAddrSUDO(const __int32& offset)
+	bool PS3Memory::IsSafeWriteAddress(const u64_t& addr)
 	{
-		return GetBaseSUDO(false) + offset;
+		constexpr DWORD writable = PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+
+		if (!addr)
+			return false;
+
+		MEMORY_BASIC_INFORMATION mbi{};
+		if (!VirtualQuery(reinterpret_cast<LPCVOID>(addr), &mbi, sizeof(mbi)))
+			return false;
+
+		if (mbi.State != MEM_COMMIT)
+			return false;
+
+		if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))
+			return false;
+
+		return (mbi.Protect & writable) != 0;
 	}
 
-	__int64 PS3Memory::GetAddrEXEC(const __int32& offset)
-	{
-		return GetBaseEXEC() + offset;
-	}
+	inline u16_t PS3Memory::ReadShort(const u64_t& addr) { return _byteswap_ushort(Memory::ReadMemoryEx<u16_t>(addr)); }
 
-	inline short PS3Memory::ReadShort(__int64 addr)
-	{
-		return _byteswap_ushort(Memory::ReadMemoryEx<unsigned short>(addr));
-	}
+	inline u32_t PS3Memory::ReadLong(const u64_t& addr) { return _byteswap_ulong(Memory::ReadMemoryEx<u32_t>(addr)); }
 
-	inline long PS3Memory::ReadWord(__int64 addr)
-	{
-		return _byteswap_ulong(Memory::ReadMemoryEx<unsigned long>(addr));
-	}
+	inline u64_t PS3Memory::ReadU64(const u64_t& addr) { return _byteswap_uint64(Memory::ReadMemoryEx<u64_t>(addr)); }
 
-	inline __int64 PS3Memory::ReadLong(__int64 addr)
+	inline bool PS3Memory::WriteShort(const u64_t& addr, const u16_t& v)
 	{
-		return _byteswap_uint64(Memory::ReadMemoryEx<unsigned __int64>(addr));
-	}
-
-	inline bool PS3Memory::WriteShort(__int64 addr, const unsigned short& v)
-	{
-		Memory::WriteMemoryEx<short>(addr, _byteswap_ushort(v));
+		Memory::WriteMemoryEx<u16_t>(addr, _byteswap_ushort(v));
 
 		return ReadShort(addr) == v;
 	}
 
-	inline bool PS3Memory::WriteWord(__int64 addr, const unsigned long& v)
+	inline bool PS3Memory::WriteLong(const u64_t& addr, const u32_t& v)
 	{
-		Memory::WriteMemoryEx<long>(addr, _byteswap_ulong(v));
-
-		return ReadWord(addr) == v;
-	}
-
-	inline bool PS3Memory::WriteLong(__int64 addr, const unsigned __int64& v)
-	{
-		Memory::WriteMemoryEx<unsigned __int64>(addr, _byteswap_uint64(v));
+		Memory::WriteMemoryEx<u32_t>(addr, _byteswap_ulong(v));
 
 		return ReadLong(addr) == v;
 	}
 
-	inline bool PS3Memory::PointerScan(const unsigned __int64& addr, OUT std::vector<unsigned long long>& result, const size_t& depth)
+	inline bool PS3Memory::WriteU64(const u64_t& addr, const u64_t& v)
 	{
+		Memory::WriteMemoryEx<u64_t>(addr, _byteswap_uint64(v));
 
+		return ReadU64(addr) == v;
+	}
+
+	inline bool PS3Memory::PointerScan(const u64_t& addr, OUT std::vector<u64_t>& result, const size_t& depth)
+	{
 		/*
 		 depth: how far back to go from the base address. Take the input 0x3301E8010. Let's say the entire region comes up with nothing pointing to it and there is a value passed for depth the method would walk backwards 4 bytes at a time searching for a pointer. 
 		 addr: 0x3301E8010
@@ -619,15 +654,15 @@ namespace Playstation3
 		if (!vm)
 			return false;
 
-		unsigned __int8* scan_bytes = reinterpret_cast<unsigned __int8*>(vm); // hehe "im in danger"
+		u8_t* scan_bytes = reinterpret_cast<u8_t*>(vm); // hehe "im in danger"
 
 		SIZE_T read_sz{ 0 }; // read size 
 		constexpr size_t sz = 4;
 		constexpr size_t section_sz = 0x100000000; // size of section to scan
-		unsigned long long input_base = addr & 0xFFFFFFFF; // (addr >> 32) & 0xF > 0 ? addr & 0xFFFFFFFF : addr & 0xFFFFFF; // mask leading bytes
+		u64_t input_base = addr & 0xFFFFFFFF; // (addr >> 32) & 0xF > 0 ? addr & 0xFFFFFFFF : addr & 0xFFFFFF; // mask leading bytes
 		printf("[+][PS3Memory::PointerScan] vm: 0x%llX : input: 0x%llX : masked: 0x%llX : bytes: ", vm, addr, input_base);
 
-		unsigned __int8 input_bytes[sz];
+		u8_t input_bytes[sz];
 		for (int i = 0; i < 4; i++)
 		{
 			input_bytes[i] = (input_base >> (24 - (i * 8))) & 0xFF; // 30 1E 80 10
@@ -636,7 +671,7 @@ namespace Playstation3
 		printf("\n");
 
 		size_t scan_act = 0;
-		std::vector<unsigned long long> scan_results;
+		std::vector<u64_t> scan_results;
 		for (int L = 0; L < depth + 1; L++)
 		{
 			if (L != 0)
@@ -696,7 +731,8 @@ namespace Playstation3
 				}
 				scan_act += region_sz;
 			}
-			scan_act = 0; // reset scan for next
+			
+			scan_act = 0; // reset scan for next level (depth)
 		}
 
 		result = scan_results;
@@ -706,19 +742,20 @@ namespace Playstation3
 		return scan_results.size() > 0;
 	}
 
-	inline bool PS3Memory::DumpELF(const char* name)
+	inline bool PS3Memory::DumpELFHeaders(const char* name)
 	{
 		const auto& vm = GetBaseVM(); // _IMAGE_ELF64_HEADER
 		if (!vm)
 			return false;
 
-		const auto& core = vm - 0x10000;
-		const auto& ELF = Memory::ReadMemoryEx<_IMAGE_ELF64_HEADER>(vm);
 
 		/* parse program headers */
+		const auto& core = vm - ELF_HEADER;
+		const auto& ELF = Memory::ReadMemoryEx<_IMAGE_ELF64_HEADER>(vm);
 		const auto& program_header_offset = _byteswap_uint64(ELF.e_phoff);
 		const auto& program_header_size = _byteswap_ushort(ELF.e_phentsize);
 		const auto& program_header_count = _byteswap_ushort(ELF.e_phnum);
+		printf("[+][PS3Memory::DumpELF][%s] Dumping ELF Program Headers\n- VM: 0x%llX\n- ELF Header: 0x%llX\n- PH Offset: 0x%08X\n- PH Size: 0x%08X\n- PH Count: %d\n", name, core, vm, program_header_offset, program_header_size, program_header_count);
 
 		//	std::vector<_ELF64_PROG_HEADER> program_headers;
 		for (int i = 0; i < program_header_count; i++)
@@ -726,6 +763,9 @@ namespace Playstation3
 			auto offset = vm + program_header_offset + (i * program_header_size);
 
 			auto ph = Memory::ReadMemoryEx<_ELF64_PROG_HEADER>(offset);
+			if (ph.p_filesz <= 0 || ph.p_memsz <= 0)
+				continue;
+
 			ph.p_type = _byteswap_ulong(ph.p_type);		
 			ph.p_flags = _byteswap_ulong(ph.p_flags);	
 			ph.p_offset = _byteswap_uint64(ph.p_offset);
@@ -741,9 +781,11 @@ namespace Playstation3
 			sprintf_s(buff, "%s_%d.ELF", name, i);
 
 			const auto& va = core + ph.p_vaddr;
-			printf("[-] Dumping section to file @ 0x%llX with size 0x%08X\n", va, ph.p_memsz);
-			Memory::DumpSectionToFile(buff, va, ph.p_memsz);
+			printf("[-][PS3Memory::DumpELF] Dumping section to file @ 0x%llX with size 0x%08X\n", va, ph.p_filesz);
+			Memory::DumpSectionToFile(buff, va, ph.p_filesz);
 		}
+
+		printf("[+][PS3Memory::DumpELF] finished.\n");
 
 		return true;
 
